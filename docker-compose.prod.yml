@@ -1,0 +1,59 @@
+version: "3.9"
+
+services:
+  fastapi:
+    image: tlime/visign-ai-model:latest
+    container_name: fastapi
+    restart: unless-stopped
+    expose:
+      - "8000"
+    environment:
+      - ENV=production
+    networks:
+      - visign-network
+
+  nextjs:
+    image: tlime/visign-frontend:latest
+    container_name: nextjs
+    restart: unless-stopped
+    expose:
+      - "3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+      - DATABASE_URL=${DATABASE_URL}
+      - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      - CLERK_SECRET_KEY=${CLERK_SECRET_KEY}
+    networks:
+      - visign-network
+    depends_on:
+      - fastapi
+
+  nginx:
+    image: tlime/visign-nginx:latest
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./certbot/www:/var/www/certbot:ro
+      - ./certbot/conf:/etc/letsencrypt:ro
+    networks:
+      - visign-network
+    depends_on:
+      - fastapi
+      - nextjs
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: certbot
+    volumes:
+      - ./certbot/www:/var/www/certbot:rw
+      - ./certbot/conf:/etc/letsencrypt:rw
+    networks:
+      - visign-network
+
+networks:
+  visign-network:
+    driver: bridge
