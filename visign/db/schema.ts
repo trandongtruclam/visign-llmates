@@ -1,0 +1,196 @@
+import { relations } from "drizzle-orm";
+import {
+  boolean,
+  integer,
+  pgEnum,
+  pgTable,
+  serial,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
+
+export const courses = pgTable("courses", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  imageSrc: text("image_src").notNull(),
+});
+
+export const coursesRelations = relations(courses, ({ many }) => ({
+  userProgress: many(userProgress),
+  units: many(units),
+}));
+
+export const units = pgTable("units", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(), // Unit 1
+  description: text("description").notNull(), // Learn the basics of vietnamese sign language
+  courseId: integer("course_id")
+    .references(() => courses.id, {
+      onDelete: "cascade",
+    })
+    .notNull(),
+  order: integer("order").notNull(),
+});
+
+export const unitsRelations = relations(units, ({ many, one }) => ({
+  course: one(courses, {
+    fields: [units.courseId],
+    references: [courses.id],
+  }),
+  lessons: many(lessons),
+}));
+
+export const lessons = pgTable("lessons", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  unitId: integer("unit_id")
+    .references(() => units.id, {
+      onDelete: "cascade",
+    })
+    .notNull(),
+  order: integer("order").notNull(),
+});
+
+export const lessonsRelations = relations(lessons, ({ one, many }) => ({
+  unit: one(units, {
+    fields: [lessons.unitId],
+    references: [units.id],
+  }),
+  challenges: many(challenges),
+}));
+
+export const challengesEnum = pgEnum("type", [
+  "SELECT",
+  "ASSIST",
+  "VIDEO_LEARN",
+  "VIDEO_SELECT",
+  "SIGN_DETECT",
+]);
+
+export const challenges = pgTable("challenges", {
+  id: serial("id").primaryKey(),
+  lessonId: integer("lesson_id")
+    .references(() => lessons.id, {
+      onDelete: "cascade",
+    })
+    .notNull(),
+  type: challengesEnum("type").notNull(),
+  question: text("question").notNull(),
+  order: integer("order").notNull(),
+  videoUrl: text("video_url"),
+});
+
+export const challengesRelations = relations(challenges, ({ one, many }) => ({
+  lesson: one(lessons, {
+    fields: [challenges.lessonId],
+    references: [lessons.id],
+  }),
+  challengeOptions: many(challengeOptions),
+  challengeProgress: many(challengeProgress),
+}));
+
+export const challengeOptions = pgTable("challenge_options", {
+  id: serial("id").primaryKey(),
+  challengeId: integer("challenge_id")
+    .references(() => challenges.id, {
+      onDelete: "cascade",
+    })
+    .notNull(),
+  text: text("text").notNull(),
+  correct: boolean("correct").notNull(),
+  // imageSrc: text("image_src"),
+  // videoUrl: text("video_url"),
+  // audioSrc: text("audio_src"),
+});
+
+export const challengeOptionsRelations = relations(
+  challengeOptions,
+  ({ one }) => ({
+    challenge: one(challenges, {
+      fields: [challengeOptions.challengeId],
+      references: [challenges.id],
+    }),
+  })
+);
+
+export const challengeProgress = pgTable("challenge_progress", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  challengeId: integer("challenge_id")
+    .references(() => challenges.id, {
+      onDelete: "cascade",
+    })
+    .notNull(),
+  completed: boolean("completed").notNull().default(false),
+  retryCount: integer("retry_count").notNull().default(0),
+  timeSpentSeconds: integer("time_spent_seconds").default(0),
+});
+
+export const challengeProgressRelations = relations(
+  challengeProgress,
+  ({ one }) => ({
+    challenge: one(challenges, {
+      fields: [challengeProgress.challengeId],
+      references: [challenges.id],
+    }),
+  })
+);
+
+export const userProgress = pgTable("user_progress", {
+  userId: text("user_id").primaryKey(),
+  userName: text("user_name").notNull().default("User"),
+  userImageSrc: text("user_image_src").notNull().default("/mascot.svg"),
+  activeCourseId: integer("active_course_id").references(() => courses.id, {
+    onDelete: "cascade",
+  }),
+  points: integer("points").notNull().default(0),
+});
+
+export const userProgressRelations = relations(userProgress, ({ one }) => ({
+  activeCourse: one(courses, {
+    fields: [userProgress.activeCourseId],
+    references: [courses.id],
+  }),
+}));
+
+export const lessonAnalytics = pgTable("lesson_analytics", {
+  id: serial("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  lessonId: integer("lesson_id")
+    .references(() => lessons.id, {
+      onDelete: "cascade",
+    })
+    .notNull(),
+  completedAt: timestamp("completed_at").notNull().defaultNow(),
+  totalChallenges: integer("total_challenges").notNull(),
+  correctFirstTry: integer("correct_first_try").notNull().default(0),
+  totalRetries: integer("total_retries").notNull().default(0),
+  totalTimeSeconds: integer("total_time_seconds").notNull(),
+  pointsEarned: integer("points_earned").notNull(),
+  challengeDetails: text("challenge_details"),
+  aiFeedback: text("ai_feedback"),
+  // Enhanced metrics
+  typePerformance: text("type_performance"), // JSON string
+  performanceTrend: text("performance_trend"), // "improving" | "declining" | "consistent"
+  firstHalfAccuracy: text("first_half_accuracy"),
+  secondHalfAccuracy: text("second_half_accuracy"),
+  timePattern: text("time_pattern"), // JSON string
+});
+
+export const lessonAnalyticsRelations = relations(
+  lessonAnalytics,
+  ({ one }) => ({
+    lesson: one(lessons, {
+      fields: [lessonAnalytics.lessonId],
+      references: [lessons.id],
+    }),
+  })
+);
+
+export const notificationPreferences = pgTable("notification_preferences", {
+  userId: text("user_id").primaryKey(),
+  reminderEnabled: boolean("reminder_enabled").notNull().default(true),
+  reminderTime: text("reminder_time").notNull().default("19:00"),
+  timezone: text("timezone").notNull().default("America/New_York"),
+  lastReminderSent: timestamp("last_reminder_sent"),
+});
